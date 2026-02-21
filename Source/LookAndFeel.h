@@ -199,6 +199,6 @@ public:
     // Font
     //==========================================================================
     juce::Font getLabelFont(juce::Label&) override {
-        return juce::Font(13.0f);
+        return juce::Font(juce::FontOptions(13.0f));
     }
 };

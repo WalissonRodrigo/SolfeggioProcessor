@@ -13,7 +13,7 @@ SolfeggioEditor::SolfeggioEditor(SolfeggioProcessor& p)
 
     // Title
     titleLabel.setText("SOLFEGGIO FREQUENCIES", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(22.0f, juce::Font::bold));
+    titleLabel.setFont(juce::Font(juce::FontOptions(22.0f).withStyle("Bold")));
     titleLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::gold);
     titleLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(titleLabel);
@@ -52,7 +52,7 @@ void SolfeggioEditor::setupAutoControls() {
         processor.apvts, "CycleTime", cycleTimeSlider);
 
     cycleTimeLabel.setText("CYCLE", juce::dontSendNotification);
-    cycleTimeLabel.setFont(juce::Font(10.0f));
+    cycleTimeLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
     cycleTimeLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::textSecondary);
     cycleTimeLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(cycleTimeLabel);
@@ -65,14 +65,14 @@ void SolfeggioEditor::setupAutoControls() {
         processor.apvts, "AutoIntensity", autoIntensitySlider);
 
     autoIntensityLabel.setText("INTENSITY", juce::dontSendNotification);
-    autoIntensityLabel.setFont(juce::Font(10.0f));
+    autoIntensityLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
     autoIntensityLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::textSecondary);
     autoIntensityLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(autoIntensityLabel);
 
     // Profile display label
     profileLabel.setText("Profile: --", juce::dontSendNotification);
-    profileLabel.setFont(juce::Font(11.0f, juce::Font::italic));
+    profileLabel.setFont(juce::Font(juce::FontOptions(11.0f).withStyle("Italic")));
     profileLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::accent);
     profileLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(profileLabel);
@@ -97,14 +97,14 @@ void SolfeggioEditor::setupFrequencyControls() {
 
         // Frequency name label
         ctrl.nameLabel.setText(Solfeggio::FrequencyNames[i], juce::dontSendNotification);
-        ctrl.nameLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+        ctrl.nameLabel.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Bold")));
         ctrl.nameLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::textPrimary);
         ctrl.nameLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(ctrl.nameLabel);
 
         // Description label
         ctrl.descLabel.setText(Solfeggio::FrequencyDescriptions[i], juce::dontSendNotification);
-        ctrl.descLabel.setFont(juce::Font(9.0f));
+        ctrl.descLabel.setFont(juce::Font(juce::FontOptions(9.0f)));
         ctrl.descLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::textSecondary);
         ctrl.descLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(ctrl.descLabel);
@@ -119,7 +119,7 @@ void SolfeggioEditor::setupMasterMix() {
         processor.apvts, "MasterMix", masterMixSlider);
 
     masterMixLabel.setText("MASTER MIX", juce::dontSendNotification);
-    masterMixLabel.setFont(juce::Font(13.0f, juce::Font::bold));
+    masterMixLabel.setFont(juce::Font(juce::FontOptions(13.0f).withStyle("Bold")));
     masterMixLabel.setColour(juce::Label::textColourId, SolfeggioLookAndFeel::Colors::gold);
     masterMixLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(masterMixLabel);

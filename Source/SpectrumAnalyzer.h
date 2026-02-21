@@ -49,7 +49,7 @@ public:
 
             // Frequency label
             g.setColour(SolfeggioLookAndFeel::Colors::gold.withAlpha(0.7f));
-            g.setFont(juce::Font(9.0f));
+            g.setFont(juce::Font(juce::FontOptions(9.0f)));
             g.drawText(juce::String(static_cast<int>(freq)),
                        static_cast<int>(x - 15), static_cast<int>(bounds.getY() + 2),
                        30, 12, juce::Justification::centred);

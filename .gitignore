@@ -11,9 +11,6 @@ cmake_install.cmake
 Makefile
 _deps/
 
-# Cargo/Rust
-Cargo.lock
-
 # IDE
 .vscode/
 .idea/
@@ -48,4 +45,6 @@ cmake-*.sh
 # OS
 .DS_Store
 desktop.ini
+
+# Logs
 *.log
