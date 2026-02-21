@@ -14,7 +14,7 @@ SolfeggioEditor::SolfeggioEditor(SolfeggioProcessor& p)
 {
     setLookAndFeel(&laf);
     setResizable(true, true);
-    setResizeLimits(Solfeggio::Layout::minWidth, Solfeggio::Layout::minHeight, 1400, 1100);
+    setResizeLimits(Solfeggio::Layout::minWidth, 750, 1400, 1100);
     setSize(Solfeggio::Layout::editorWidth, Solfeggio::Layout::editorHeight);
 
     // Taskbar / window icon
@@ -77,20 +77,22 @@ void SolfeggioEditor::paint(juce::Graphics& g) {
 }
 
 void SolfeggioEditor::resized() {
-    auto area = getLocalBounds().reduced(10);
+    auto area = getLocalBounds().reduced(12);
 
-    titleLabel.setBounds(area.removeFromTop(30));
-
-    const int specHeight = juce::jmax(80, area.getHeight() / 5);
-    spectrumAnalyzer.setBounds(area.removeFromTop(specHeight).reduced(5, 2));
+    titleLabel.setBounds(area.removeFromTop(32));
     area.removeFromTop(4);
+
+    const int specHeight = juce::jlimit(120, 250, area.getHeight() / 4);
+    spectrumAnalyzer.setBounds(area.removeFromTop(specHeight).reduced(4, 2));
+    area.removeFromTop(12);
 
     autoModeBar.setBounds(area.removeFromTop(35));
-    area.removeFromTop(4);
+    area.removeFromTop(12);
 
     auto masterArea = area.removeFromBottom(45);
-    masterMixLabel.setBounds(masterArea.removeFromLeft(110).reduced(0, 8));
+    masterMixLabel.setBounds(masterArea.removeFromLeft(110).reduced(0, 10));
     masterMixSlider.setBounds(masterArea.reduced(5, 8));
 
+    area.removeFromBottom(8);
     frequencyGrid.setBounds(area);
 }

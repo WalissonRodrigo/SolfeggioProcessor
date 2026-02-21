@@ -176,6 +176,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: "Solfeggio Frequencies ${{ github.ref_name }}"
           body: |
             ### What are "Energetic" Frequencies (Solfeggio)?
@@ -209,7 +210,7 @@ jobs:
             The scientific community still considers that many of these claims lack rigorous controlled studies and significant samples. The exact mechanisms of how these frequencies affect the body are not yet fully understood.
 
 
-            <img width="100%" height="100%" alt="image" src="https://github.com/user-attachments/assets/6edbf30c-ea8a-4699-871a-bb335c4f0e2d" />
+            <img width="1353" height="942" alt="image" src="https://github.com/user-attachments/assets/6edbf30c-ea8a-4699-871a-bb335c4f0e2d" />
           files: |
             artifacts/SolfeggioPlugin-Windows-Installer/*.exe
             artifacts/SolfeggioPlugin-macOS-Installer/*.dmg
@@ -219,5 +220,5 @@ jobs:
             artifacts/SolfeggioPlugin-Linux-Standalone/**
           draft: false
           prerelease: false
-          generate_release_notes: false
+          generate_release_notes: true
           fail_on_unmatched_files: false

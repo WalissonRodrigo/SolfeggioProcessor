@@ -60,10 +60,8 @@ public:
   }
 
   void updateVisibility() {
-    bool autoOn =
-        processor.apvts
-            .getRawParameterValue(Solfeggio::Params::autoMode.getParamID())
-            ->load() > 0.5f;
+    bool autoOn = processor.apvts.getRawParameterValue(Solfeggio::Params::autoMode.getParamID())->load() > 0.5f;
+    
     cycleTimeSlider.setVisible(autoOn);
     cycleTimeLabel.setVisible(autoOn);
     autoIntensitySlider.setVisible(autoOn);
@@ -72,25 +70,25 @@ public:
 
     if (autoOn) {
       auto profile = processor.engine.getAutoEngine().getCurrentProfile();
-      profileLabel.setText("Profile: " + getProfileText(profile),
-                           juce::dontSendNotification);
+      profileLabel.setText("Profile: " + getProfileText(profile), juce::dontSendNotification);
     }
+    
+    // Ensure layout is refreshed if state changed
+    resized();
+    repaint();
   }
 
   void resized() override {
     auto area = getLocalBounds();
     autoModeButton.setBounds(area.removeFromLeft(80));
 
-    if (autoModeButton.getToggleState()) {
-      profileLabel.setBounds(area.removeFromLeft(180));
-      cycleTimeLabel.setBounds(area.removeFromLeft(45));
-      cycleTimeSlider.setBounds(
-          area.removeFromLeft(juce::jmin(area.getWidth() / 2, 160)));
-      area.removeFromLeft(5);
-      autoIntensityLabel.setBounds(area.removeFromLeft(65));
-      autoIntensitySlider.setBounds(
-          area.removeFromLeft(juce::jmin(area.getWidth(), 160)));
-    }
+    // Always layout regardless of visibility to ensure labels have bounds on startup
+    profileLabel.setBounds(area.removeFromLeft(180));
+    cycleTimeLabel.setBounds(area.removeFromLeft(45));
+    cycleTimeSlider.setBounds(area.removeFromLeft(juce::jmin(area.getWidth() / 2, 160)));
+    area.removeFromLeft(5);
+    autoIntensityLabel.setBounds(area.removeFromLeft(65));
+    autoIntensitySlider.setBounds(area.removeFromLeft(juce::jmin(area.getWidth(), 160)));
   }
 
 private:
