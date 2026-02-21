@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-02-21
+
+### Changed
+- **Layered architecture** — source reorganized into `Core/`, `DSP/`, `GUI/`, `Plugin/` directories following MVC conventions
+- All `AudioParameterFloat` constructors migrated to `NormalisableRange` (JUCE 8)
+- `using juce::AudioProcessor::processBlock` added to resolve hidden-virtual MSVC warning
+
+### Fixed
+- **Windows build** (`CVT1100`/`LNK1123`) — removed custom `.rc` icon block; JUCE already handles icon resources via `ICON_BIG`/`ICON_SMALL` for all targets
+- `WindowsIconHelpers.h` rewritten with raw Win32 GDI (`CreateDIBSection`) — removes dependency on `juce::IconConverters::createHBITMAPFromImage` removed in JUCE 8
+- `SpectrumAnalyzer.h` include order fixed for MSVC precompiled headers
+- Sign-conversion warnings eliminated across `DSP/` and `GUI/` layers
+- CI/CD release job now publishes available assets even when one platform build fails
+
 ## [1.0.0] - 2026-02-21
 
 ### Added

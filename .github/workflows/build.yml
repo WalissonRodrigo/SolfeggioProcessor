@@ -35,24 +35,15 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
-            libasound2-dev \
-            libjack-jackd2-dev \
-            libx11-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libfreetype-dev \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libcurl4-openssl-dev \
-            pkg-config \
-            ccache
+            libasound2-dev libjack-jackd2-dev libx11-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev \
+            libfreetype-dev libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libcurl4-openssl-dev pkg-config ccache
 
       - name: Install ccache (macOS)
         if: runner.os == 'macOS'
         run: brew install ccache
 
-      # Cache JUCE FetchContent download across CI runs
       - name: Cache JUCE source
         uses: actions/cache@v4
         with:
@@ -60,7 +51,6 @@ jobs:
           key: juce-8.0.6-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
           restore-keys: juce-8.0.6-${{ runner.os }}-
 
-      # Cache compiled objects (ccache)
       - name: Cache compiler objects
         uses: actions/cache@v4
         with:
@@ -74,47 +64,93 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Package (Windows NSIS)
-        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/')
+      # -----------------------------------------------------------------------
+      # Stage final output files into a clean dist/ folder so artifact zips
+      # have a flat, user-friendly structure instead of deep build paths.
+      # -----------------------------------------------------------------------
+      - name: Stage artifacts (Linux)
+        if: runner.os == 'Linux'
         run: |
-          cd build
-          cpack -G NSIS
+          mkdir -p dist/VST3 dist/Standalone
+          find build -name "*.vst3" -type d -exec cp -r {} dist/VST3/ \;
+          find build -path "*/Standalone/Solfeggio*" ! -name "*.so" -exec cp -r {} dist/Standalone/ \; || true
+          ls -R dist/
 
-      - name: Package (macOS DMG)
-        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/')
+      - name: Stage artifacts (macOS)
+        if: runner.os == 'macOS'
         run: |
-          cd build
-          cpack -G DragNDrop
+          mkdir -p dist/VST3 dist/AU
+          find build -name "*.vst3" -type d -exec cp -r {} dist/VST3/ \;
+          find build -name "*.component" -type d -exec cp -r {} dist/AU/ \; || true
+          ls -R dist/
+
+      - name: Stage artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist\VST3, dist\Standalone | Out-Null
+          Get-ChildItem -Recurse build -Filter "*.vst3" | ForEach-Object {
+            Copy-Item -Recurse -Force $_.FullName dist\VST3\
+          }
+          Get-ChildItem -Recurse "build\SolfeggioPlugin_artefacts\Release\Standalone" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike "*.ilk" -and $_.Name -notlike "*.pdb" } |
+            ForEach-Object { Copy-Item -Force $_.FullName dist\Standalone\ }
+          Get-ChildItem dist -Recurse
+
+      - name: Install NSIS (Windows, tags only)
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/')
+        run: choco install nsis --no-progress -y
+
+      - name: Package installer (Windows NSIS)
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Set-Location build
+          cpack -G NSIS
+          # Move installer to dist/ with a proper name
+          $exe = Get-ChildItem -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            Copy-Item $exe.FullName "..\dist\SolfeggioFrequencies-${{ github.ref_name }}-Windows-Setup.exe"
+          }
+
+      - name: Package installer (macOS DMG)
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        run: |
+          cd build && cpack -G DragNDrop
+          dmg=$(find . -name "*.dmg" | head -1)
+          if [ -n "$dmg" ]; then
+            cp "$dmg" "../dist/SolfeggioFrequencies-${{ github.ref_name }}-macOS.dmg"
+          fi
 
       - name: Upload VST3 artifact
         uses: actions/upload-artifact@v4
         with:
           name: SolfeggioPlugin-${{ matrix.name }}-VST3
-          path: |
-            build/**/VST3/**/*.vst3
-            build/**/VST3/**/*.vst3/**
+          path: dist/VST3/
           if-no-files-found: warn
 
       - name: Upload Standalone artifact
         uses: actions/upload-artifact@v4
         with:
           name: SolfeggioPlugin-${{ matrix.name }}-Standalone
-          path: build/**/Standalone/**
+          path: dist/Standalone/
           if-no-files-found: warn
 
-      - name: Upload Installer artifact
+      - name: Upload installer artifact
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: SolfeggioPlugin-${{ matrix.name }}-Installer
           path: |
-            build/*.exe
-            build/*.dmg
+            dist/*.exe
+            dist/*.dmg
           if-no-files-found: warn
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -124,17 +160,53 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+        continue-on-error: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "Solfeggio Frequencies ${{ github.ref_name }}"
+          body: |
+            ### What are "Energetic" Frequencies (Solfeggio)?
+
+            The most commonly mentioned frequencies are the Solfeggio Frequencies, a scale of specific tones that dates back to Gregorian chants and sacred traditions. The main ones are:
+
+            | Frequency | Popular Name | Attributed Benefits |
+            | ---------- | ---------------------- | ---------------------------------------------------------- |
+            | **174 Hz** | Analgesic Frequency | Relief of physical and emotional pain, feeling of security |
+            | **285 Hz** | Healing Frequency | Tissue stimulation, energy restoration |
+            | **396 Hz** | Fear Release | Eliminates guilt and subconscious fears |
+            | **417 Hz** | Frequency of Change | Facilitates positive changes, energetic cleansing |
+            | **432 Hz** | Nature Frequency | Deep relaxation, connection with natural rhythms |
+            | **528 Hz** | Frequency of Love/DNA | Cellular repair, stress reduction, emotional upliftment |
+            | **639 Hz** | Connection Frequency | Harmonizes relationships, empathy |
+            | **741 Hz** | Detox Frequency | Problem solving, body cleansing |
+            | **852 Hz** | Spiritual Frequency | Awakening of intuition, connection with the "higher self" |
+
+
+            ### What Science Really Says
+
+            Proven Evidence:
+            - A 2018 Japanese study showed that 528 Hz significantly reduces cortisol (the stress hormone) and increases oxytocin (the happiness hormone) after just 5 minutes of listening.
+            - Italian research demonstrated that 432 Hz decreases heart rate compared to the standard 440 Hz.
+            - Glen Rein's experiment (1988) showed that Gregorian and Sanskrit chants increased UV light absorption by DNA by 5-9%, while rock music decreased it.
+            - A study with zebrafish (2023) showed that exposure to Solfeggio frequencies reversed cognitive deficits caused by stress.
+
+
+            ### Scientific Caution:
+
+            The scientific community still considers that many of these claims lack rigorous controlled studies and significant samples. The exact mechanisms of how these frequencies affect the body are not yet fully understood.
+
+
+            <img width="100%" height="100%" alt="image" src="https://github.com/user-attachments/assets/6edbf30c-ea8a-4699-871a-bb335c4f0e2d" />
           files: |
             artifacts/SolfeggioPlugin-Windows-Installer/*.exe
             artifacts/SolfeggioPlugin-macOS-Installer/*.dmg
-            artifacts/SolfeggioPlugin-Linux-Standalone/**
+            artifacts/SolfeggioPlugin-Linux-VST3/**
             artifacts/SolfeggioPlugin-Windows-VST3/**
             artifacts/SolfeggioPlugin-macOS-VST3/**
-            artifacts/SolfeggioPlugin-Linux-VST3/**
+            artifacts/SolfeggioPlugin-Linux-Standalone/**
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
+          fail_on_unmatched_files: false
