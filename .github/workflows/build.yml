@@ -210,7 +210,7 @@ jobs:
             The scientific community still considers that many of these claims lack rigorous controlled studies and significant samples. The exact mechanisms of how these frequencies affect the body are not yet fully understood.
 
 
-            <img width="1353" height="942" alt="image" src="https://github.com/user-attachments/assets/6edbf30c-ea8a-4699-871a-bb335c4f0e2d" />
+            ![Solfeggio Frequencies UI](https://raw.githubusercontent.com/WalissonRodrigo/SolfeggioProcessor/main/Resources/example-ui-v1.png)
           files: |
             artifacts/SolfeggioPlugin-Windows-Installer/*.exe
             artifacts/SolfeggioPlugin-macOS-Installer/*.dmg

@@ -2,9 +2,10 @@
 
 [![Build](https://github.com/WalissonRodrigo/SolfeggioProcessor/actions/workflows/build.yml/badge.svg)](https://github.com/WalissonRodrigo/SolfeggioProcessor/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.0.0-purple)
-
+![Version](https://img.shields.io/badge/version-1.0.1-purple)
 > Subliminal Solfeggio frequency processing plugin — blend healing tones into any audio, intelligently and imperceptibly.
+
+![Solfeggio Frequencies UI](Resources/example-ui-v1.png)
 
 ---
 
