@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/WalissonRodrigo/SolfeggioProcessor/actions/workflows/build.yml/badge.svg)](https://github.com/WalissonRodrigo/SolfeggioProcessor/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-2.0.0-purple)
+![Version](https://img.shields.io/badge/version-1.0.0-purple)
 
 > Subliminal Solfeggio frequency processing plugin — blend healing tones into any audio, intelligently and imperceptibly.
 
@@ -124,7 +124,7 @@ Run the executable directly from the build output.
 
 ## 🔄 CI/CD
 
-GitHub Actions builds on every push to `main` / `develop` and on pull requests. Tagged releases (`v*`) trigger installer packaging (NSIS on Windows, DMG on macOS) and a draft GitHub Release.
+GitHub Actions builds on every push to `main` / `develop` and on pull requests. Tagged releases (`v*`) trigger installer packaging (NSIS on Windows, DMG on macOS) and an automated **Public GitHub Release**.
 
 ## 🎶 Solfeggio Frequencies Reference
 

@@ -108,6 +108,12 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
-          draft: true
+          files: |
+            artifacts/SolfeggioPlugin-Windows-Installer/*.exe
+            artifacts/SolfeggioPlugin-macOS-Installer/*.dmg
+            artifacts/SolfeggioPlugin-Linux-Standalone/*
+            artifacts/SolfeggioPlugin-Windows-VST3/*
+            artifacts/SolfeggioPlugin-macOS-VST3/*
+          draft: false
+          prerelease: false
           generate_release_notes: true

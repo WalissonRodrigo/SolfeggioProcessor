@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SolfeggioPlugin VERSION 2.0.0 LANGUAGES C CXX)
+project(SolfeggioPlugin VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,6 +12,8 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i[3-6]86")
 endif()
 # ARM/Apple Silicon uses NEON automatically — no flags needed
 
+include(CMake/EmbedIcon.cmake)
+
 # ============================================================================
 # Fetch JUCE via FetchContent
 # ============================================================================
@@ -19,8 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        8.0.6
-    GIT_SHALLOW    TRUE
+    GIT_TAG 8.0.6
+    GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(JUCE)
 
@@ -29,20 +31,37 @@ FetchContent_MakeAvailable(JUCE)
 # ============================================================================
 juce_add_plugin(SolfeggioPlugin
     PLUGIN_MANUFACTURER_CODE Solf
-    PLUGIN_CODE               Sfgg
-    FORMATS                   VST3 Standalone  # AU added below for macOS
-    PRODUCT_NAME              "Solfeggio Frequencies"
-    COMPANY_NAME              "Walisson Rodrigo"
-    BUNDLE_ID                 "com.walissonrodrigo.solfeggio"
-    IS_SYNTH                  FALSE
-    NEEDS_MIDI_INPUT          FALSE
-    NEEDS_MIDI_OUTPUT         FALSE
+    PLUGIN_CODE Sfgg
+    FORMATS VST3 Standalone # AU added below for macOS
+    PRODUCT_NAME "Solfeggio Frequencies"
+    COMPANY_NAME "WR Systems (Walisson Rodrigo)"
+    BUNDLE_ID "com.walissonrodrigo.solfeggio"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD   FALSE
-    ICON_BIG                  "${CMAKE_SOURCE_DIR}/Resources/icon.png"
-    PLUGIN_MANUFACTURER_URL   "https://github.com/WalissonRodrigo/SolfeggioProcessor"
-    PLUGIN_DESCRIPTION        "Subliminal Solfeggio frequency processing"
+    COPY_PLUGIN_AFTER_BUILD FALSE
+    ICON_BIG "${CMAKE_SOURCE_DIR}/Resources/icon_256.png"
+    ICON_SMALL "${CMAKE_SOURCE_DIR}/Resources/icon_32.png"
+    PLUGIN_MANUFACTURER_URL "https://github.com/WalissonRodrigo/SolfeggioProcessor"
+    PLUGIN_DESCRIPTION "Subliminal Solfeggio frequency processing"
 )
+
+# Embed icon as binary data for cross-platform robustness
+embed_icon(SolfeggioPlugin_Standalone "Resources/icon_256.png")
+embed_icon(SolfeggioPlugin_VST3 "Resources/icon_256.png")
+
+# Native Windows Icon Resource (for .exe file icon and taskbar)
+if(WIN32)
+    set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.ico")
+    if(EXISTS ${APP_ICON})
+        set(ICON_RC "${CMAKE_BINARY_DIR}/icon.rc")
+        file(WRITE ${ICON_RC} "IDI_ICON1 ICON DISCARDABLE \"${APP_ICON}\"\n")
+        target_sources(SolfeggioPlugin_Standalone PRIVATE ${ICON_RC})
+        target_sources(SolfeggioPlugin_VST3 PRIVATE ${ICON_RC})
+        set_target_properties(SolfeggioPlugin_Standalone PROPERTIES WIN32_EXECUTABLE TRUE)
+    endif()
+endif()
 
 # Generate JuceHeader.h
 juce_generate_juce_header(SolfeggioPlugin)
@@ -60,6 +79,9 @@ endif()
 target_sources(SolfeggioPlugin PRIVATE
     Source/SolfeggioProcessor.cpp
     Source/PluginEditor.cpp
+    Source/SolfeggioEngine.cpp
+    Source/SmartAutoEngine.cpp
+    Source/SidechainCompressor.cpp
 )
 
 # Headers (for IDE visibility)
@@ -77,7 +99,6 @@ target_compile_definitions(SolfeggioPlugin PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
 # ============================================================================
