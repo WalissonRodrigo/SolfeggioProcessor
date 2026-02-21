@@ -52,18 +52,7 @@ juce_add_plugin(SolfeggioPlugin
 # Embed icon as binary data for cross-platform robustness
 embed_icon(SolfeggioPlugin "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_256.png")
 
-# Native Windows Icon Resource (for .exe taskbar icon — Standalone only)
-# VST3 is a DLL and does NOT support .rc icon resources.
-# Adding it to both targets causes a CVT1100 duplicate resource linker error.
-if(WIN32)
-    set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.ico")
-    if(EXISTS ${APP_ICON})
-        set(ICON_RC "${CMAKE_BINARY_DIR}/icon.rc")
-        file(WRITE ${ICON_RC} "IDI_ICON1 ICON DISCARDABLE \"${APP_ICON}\"\n")
-        target_sources(SolfeggioPlugin_Standalone PRIVATE ${ICON_RC})
-        set_target_properties(SolfeggioPlugin_Standalone PROPERTIES WIN32_EXECUTABLE TRUE)
-    endif()
-endif()
+
 
 # Generate JuceHeader.h
 juce_generate_juce_header(SolfeggioPlugin)
