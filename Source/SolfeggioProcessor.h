@@ -78,6 +78,68 @@ private:
 };
 
 //==============================================================================
+class SmartAutoEngine {
+public:
+    SmartAutoEngine();
+
+    void prepare(double sampleRate);
+    void reset();
+
+    // Analyze a block of audio and update internal state
+    void analyzeBlock(const float* data, int numSamples);
+
+    // Get the target gain for each frequency (0.0 - 1.0)
+    // Call this once per block after analyzeBlock
+    void getTargetGains(std::array<float, Solfeggio::NUM_FREQUENCIES>& gains,
+                        float cycleTimeSec, float intensity);
+
+    // Get current music profile description
+    enum class MusicProfile { BassHeavy, MidFocused, Bright, FullSpectrum, Quiet };
+    MusicProfile getCurrentProfile() const { return currentProfile; }
+
+private:
+    double sampleRate = 44100.0;
+
+    // Band energy accumulators
+    float bassEnergy = 0.0f;   // 20–300 Hz
+    float midEnergy = 0.0f;    // 300–2000 Hz
+    float highEnergy = 0.0f;   // 2000–10000 Hz
+    float totalEnergy = 0.0f;
+
+    // Band filters
+    juce::dsp::IIR::Filter<float> bassFilter;
+    juce::dsp::IIR::Filter<float> midFilter;
+    juce::dsp::IIR::Filter<float> highFilter;
+
+    // Smoothed band energies (for stable detection)
+    float smoothBass = 0.0f;
+    float smoothMid = 0.0f;
+    float smoothHigh = 0.0f;
+    float smoothTotal = 0.0f;
+    static constexpr float smoothCoeff = 0.95f;
+
+    // Frequency cycling state
+    double cycleTimer = 0.0;
+    int currentCycleSlot = 0;
+    static constexpr int NUM_CYCLE_SLOTS = 3;  // 3 frequencies active at a time
+
+    // Currently active frequency indices and their target gains
+    std::array<int, NUM_CYCLE_SLOTS> activeFreqs = {0, 5, 9};
+    std::array<int, NUM_CYCLE_SLOTS> nextFreqs = {1, 6, 8};
+
+    // Crossfade state (0.0 = fully old, 1.0 = fully new)
+    float crossfadeProgress = 1.0f;
+    static constexpr float crossfadeDurationSec = 5.0f;
+    bool isCrossfading = false;
+
+    MusicProfile currentProfile = MusicProfile::Quiet;
+
+    void selectFrequenciesForProfile(MusicProfile profile,
+                                     std::array<int, NUM_CYCLE_SLOTS>& selection);
+    MusicProfile detectProfile() const;
+};
+
+//==============================================================================
 class SolfeggioProcessor : public juce::AudioProcessor {
 public:
     SolfeggioProcessor();
@@ -120,6 +182,9 @@ public:
     std::array<float, fftSize * 2> fftData{};
     std::atomic<bool> fftDataReady{false};
 
+    // Smart auto engine — public for GUI to read current profile
+    SmartAutoEngine autoEngine;
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static juce::AudioProcessor::BusesProperties getBusesProperties();
@@ -155,5 +220,9 @@ private:
     std::array<juce::SmoothedValue<float>, Solfeggio::NUM_FREQUENCIES> smoothedGains;
     juce::SmoothedValue<float> smoothedMix;
 
+    // Auto-mode smoothed gains (separate from manual)
+    std::array<juce::SmoothedValue<float>, Solfeggio::NUM_FREQUENCIES> autoSmoothedGains;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SolfeggioProcessor)
 };
+

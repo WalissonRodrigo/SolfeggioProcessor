@@ -46,34 +46,24 @@ float SidechainCompressor::computeGainReduction(float inputLevelDb) const {
     float diff = inputLevelDb - thresh;
 
     if (diff <= -halfKnee) {
-        // Below knee → no compression
         return 0.0f;
     } else if (diff >= halfKnee) {
-        // Above knee → full compression
         return diff * (1.0f - 1.0f / r);
     } else {
-        // In the knee → soft transition
         float x = diff + halfKnee;
         return (x * x) / (4.0f * knee) * (1.0f - 1.0f / r);
     }
 }
 
 float SidechainCompressor::computeEnvelopeRMS(const float* data, int numSamples) {
-    // Use JUCE's optimized vector operations (SIMD when available)
-    float sumOfSquares = 0.0f;
-
-    // Process 4 samples at a time using FloatVectorOperations
     for (int i = 0; i < numSamples; ++i) {
         float filtered = sidechainFilter.processSample(data[i]);
         float sq = filtered * filtered;
 
-        // Update running RMS window
         rmsSum -= rmsBuffer[static_cast<size_t>(rmsWritePos)];
         rmsBuffer[static_cast<size_t>(rmsWritePos)] = sq;
         rmsSum += sq;
         rmsWritePos = (rmsWritePos + 1) % static_cast<int>(rmsBuffer.size());
-
-        sumOfSquares += sq;
     }
 
     return std::sqrt(rmsSum / static_cast<float>(rmsBuffer.size()));
@@ -93,29 +83,220 @@ void SidechainCompressor::process(float* data, const float* sidechainInput, int 
     float rel = releaseMs.load(std::memory_order_relaxed);
     float wet = dryWet.load(std::memory_order_relaxed);
 
-    // Recompute coefficients if changed
     attackCoeff  = 1.0f - std::exp(-1.0f / (static_cast<float>(currentSampleRate) * atk  * 0.001f));
     releaseCoeff = 1.0f - std::exp(-1.0f / (static_cast<float>(currentSampleRate) * rel * 0.001f));
 
     for (int i = 0; i < numSamples; ++i) {
-        // Envelope follower: peak + RMS hybrid
         float filtered = sidechainFilter.processSample(sidechainInput[i]);
         float inputLevel = std::abs(filtered);
 
-        // Smooth envelope with attack/release
         float coeff = (inputLevel > envelopeLevel) ? attackCoeff : releaseCoeff;
         envelopeLevel += coeff * (inputLevel - envelopeLevel);
 
-        // Convert to dB
         float levelDb = juce::Decibels::gainToDecibels(envelopeLevel, -100.0f);
 
-        // Compute gain reduction
         float reductionDb = computeGainReduction(levelDb);
         float gainLin = juce::Decibels::decibelsToGain(-reductionDb);
 
-        // Apply with dry/wet
         float compressed = data[i] * gainLin;
         data[i] = data[i] * (1.0f - wet) + compressed * wet;
+    }
+}
+
+//==============================================================================
+// SmartAutoEngine Implementation
+//==============================================================================
+
+SmartAutoEngine::SmartAutoEngine() {}
+
+void SmartAutoEngine::prepare(double sr) {
+    sampleRate = sr;
+
+    // Bass band: lowpass at 300Hz
+    auto bassCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(sr, 300.0f);
+    bassFilter.coefficients = bassCoeffs;
+    bassFilter.reset();
+
+    // Mid band: bandpass 300Hz–2kHz
+    auto midCoeffs = juce::dsp::IIR::Coefficients<float>::makeBandPass(sr, 800.0f, 0.8f);
+    midFilter.coefficients = midCoeffs;
+    midFilter.reset();
+
+    // High band: highpass at 2kHz
+    auto highCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(sr, 2000.0f);
+    highFilter.coefficients = highCoeffs;
+    highFilter.reset();
+
+    reset();
+}
+
+void SmartAutoEngine::reset() {
+    smoothBass = 0.0f;
+    smoothMid = 0.0f;
+    smoothHigh = 0.0f;
+    smoothTotal = 0.0f;
+    cycleTimer = 0.0;
+    crossfadeProgress = 1.0f;
+    isCrossfading = false;
+    currentProfile = MusicProfile::Quiet;
+}
+
+SmartAutoEngine::MusicProfile SmartAutoEngine::detectProfile() const {
+    // Classify music based on band energy ratios
+    float total = smoothBass + smoothMid + smoothHigh + 1e-10f;
+
+    if (total < 0.001f)
+        return MusicProfile::Quiet;
+
+    float bassRatio = smoothBass / total;
+    float midRatio = smoothMid / total;
+    float highRatio = smoothHigh / total;
+
+    if (bassRatio > 0.5f)
+        return MusicProfile::BassHeavy;      // Funk, Hip-hop, EDM
+    if (midRatio > 0.45f)
+        return MusicProfile::MidFocused;      // MPB, Vocal, Sertanejo
+    if (highRatio > 0.4f)
+        return MusicProfile::Bright;          // Classical violin, bright pop
+    return MusicProfile::FullSpectrum;        // Balanced music
+}
+
+void SmartAutoEngine::selectFrequenciesForProfile(
+    MusicProfile profile, std::array<int, NUM_CYCLE_SLOTS>& selection)
+{
+    // Select 3 Solfeggio frequencies that HIDE BEST within the music
+    // (frequencies in bands where music is loud are masked better)
+    switch (profile) {
+        case MusicProfile::BassHeavy:
+            // Bass-heavy music: use higher solfeggio freqs (they hide above bass)
+            // Indices: 5=528Hz, 6=639Hz, 7=741Hz
+            selection = {5, 6, 7};
+            break;
+        case MusicProfile::MidFocused:
+            // Mid-focused music: use mid-range solfeggio freqs (hide in vocals)
+            // Indices: 3=417Hz, 4=432Hz, 5=528Hz
+            selection = {3, 4, 5};
+            break;
+        case MusicProfile::Bright:
+            // Bright music: use higher solfeggio freqs that blend with brightness
+            // Indices: 7=741Hz, 8=852Hz, 9=963Hz
+            selection = {7, 8, 9};
+            break;
+        case MusicProfile::FullSpectrum:
+            // Balanced: spread across range
+            // Indices: 2=396Hz, 5=528Hz, 8=852Hz
+            selection = {2, 5, 8};
+            break;
+        case MusicProfile::Quiet:
+            // When quiet: use low frequencies (most relaxing, less noticeable)
+            // Indices: 0=174Hz, 1=285Hz, 2=396Hz
+            selection = {0, 1, 2};
+            break;
+    }
+
+    // Rotate to avoid always picking the same set:
+    // Shift based on cycle slot to create variety
+    int offset = currentCycleSlot % 3;
+    if (offset > 0) {
+        for (auto& idx : selection) {
+            idx = (idx + offset) % Solfeggio::NUM_FREQUENCIES;
+        }
+    }
+}
+
+void SmartAutoEngine::analyzeBlock(const float* data, int numSamples) {
+    // Compute band energies for this block
+    float blockBass = 0.0f, blockMid = 0.0f, blockHigh = 0.0f;
+
+    for (int i = 0; i < numSamples; ++i) {
+        float sample = data[i];
+
+        float bass = bassFilter.processSample(sample);
+        float mid  = midFilter.processSample(sample);
+        float high = highFilter.processSample(sample);
+
+        blockBass += bass * bass;
+        blockMid  += mid * mid;
+        blockHigh += high * high;
+    }
+
+    float invN = 1.0f / static_cast<float>(std::max(numSamples, 1));
+    blockBass = std::sqrt(blockBass * invN);
+    blockMid  = std::sqrt(blockMid * invN);
+    blockHigh = std::sqrt(blockHigh * invN);
+
+    // Smooth over time (exponential moving average)
+    smoothBass = smoothCoeff * smoothBass + (1.0f - smoothCoeff) * blockBass;
+    smoothMid  = smoothCoeff * smoothMid  + (1.0f - smoothCoeff) * blockMid;
+    smoothHigh = smoothCoeff * smoothHigh + (1.0f - smoothCoeff) * blockHigh;
+    smoothTotal = smoothBass + smoothMid + smoothHigh;
+
+    // Update profile
+    currentProfile = detectProfile();
+}
+
+void SmartAutoEngine::getTargetGains(
+    std::array<float, Solfeggio::NUM_FREQUENCIES>& gains,
+    float cycleTimeSec, float intensity)
+{
+    // Advance cycle timer
+    double blockDuration = 1.0 / 60.0;  // Approximate: called ~60x/sec at 48kHz/1024 samples
+    cycleTimer += blockDuration;
+
+    // Handle crossfade progress
+    if (isCrossfading) {
+        crossfadeProgress += static_cast<float>(blockDuration / crossfadeDurationSec);
+        if (crossfadeProgress >= 1.0f) {
+            crossfadeProgress = 1.0f;
+            isCrossfading = false;
+            activeFreqs = nextFreqs;
+        }
+    }
+
+    // Time to switch frequencies?
+    if (cycleTimer >= static_cast<double>(cycleTimeSec) && !isCrossfading) {
+        cycleTimer = 0.0;
+        currentCycleSlot++;
+
+        // Select new frequencies based on current profile
+        selectFrequenciesForProfile(currentProfile, nextFreqs);
+
+        // Only start crossfade if the selection actually changed
+        if (nextFreqs != activeFreqs) {
+            isCrossfading = true;
+            crossfadeProgress = 0.0f;
+        }
+    }
+
+    // Build smooth gains
+    gains.fill(0.0f);
+
+    // Active frequencies (fade OUT during crossfade)
+    float activeGain = isCrossfading ? (1.0f - crossfadeProgress) : 1.0f;
+    for (int idx : activeFreqs) {
+        gains[static_cast<size_t>(idx)] += activeGain;
+    }
+
+    // Next frequencies (fade IN during crossfade)
+    if (isCrossfading) {
+        float nextGain = crossfadeProgress;
+        for (int idx : nextFreqs) {
+            gains[static_cast<size_t>(idx)] += nextGain;
+        }
+    }
+
+    // Apply intensity and adaptive volume
+    // When music is loud, reduce solfeggio volume for subliminal effect
+    float adaptiveVolume = 1.0f;
+    if (smoothTotal > 0.01f) {
+        // The louder the music, the more the solfeggio hides
+        adaptiveVolume = juce::jlimit(0.2f, 1.0f,
+            0.5f / (smoothTotal + 0.5f));
+    }
+
+    float finalScale = intensity * adaptiveVolume;
+    for (auto& g : gains) {
+        g = juce::jlimit(0.0f, 1.0f, g * finalScale);
     }
 }
 
@@ -180,6 +361,26 @@ SolfeggioProcessor::createParameterLayout() {
         juce::ParameterID{"SC_DryWet", 1}, "SC Dry/Wet",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
 
+    // ===== Smart Auto Mode parameters =====
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{"AutoMode", 1}, "Auto Mode", true));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"CycleTime", 1}, "Cycle Time",
+        juce::NormalisableRange<float>(15.0f, 120.0f, 1.0f), 45.0f,
+        juce::String(),
+        juce::AudioProcessorParameter::genericParameter,
+        [](float v, int) { return juce::String(static_cast<int>(v)) + "s"; },
+        [](const juce::String& s) { return s.getFloatValue(); }));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"AutoIntensity", 1}, "Auto Intensity",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 60.0f,
+        juce::String(),
+        juce::AudioProcessorParameter::genericParameter,
+        [](float v, int) { return juce::String(v, 1) + "%"; },
+        [](const juce::String& s) { return s.getFloatValue(); }));
+
     return {params.begin(), params.end()};
 }
 
@@ -197,7 +398,13 @@ void SolfeggioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     for (auto& sg : smoothedGains) {
         sg.reset(sampleRate, 0.02); // 20ms smoothing
     }
+    for (auto& ag : autoSmoothedGains) {
+        ag.reset(sampleRate, 0.05); // 50ms smoothing for auto mode (smoother)
+    }
     smoothedMix.reset(sampleRate, 0.02);
+
+    // Setup auto engine
+    autoEngine.prepare(sampleRate);
 
     // Reset FFT
     fftFillIndex = 0;
@@ -207,6 +414,7 @@ void SolfeggioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
 void SolfeggioProcessor::releaseResources() {
     sidechain.reset();
+    autoEngine.reset();
 }
 
 bool SolfeggioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -243,30 +451,51 @@ void SolfeggioProcessor::processBlock(
     sidechain.setReleaseMs(scRelease);
     sidechain.setDryWet(scDryWet);
 
-    // Read frequency gains and enabled states
-    std::array<float, Solfeggio::NUM_FREQUENCIES> gains{};
-    std::array<bool,  Solfeggio::NUM_FREQUENCIES> enabled{};
+    // Read auto mode parameters
+    bool autoMode = apvts.getRawParameterValue("AutoMode")->load() > 0.5f;
+    float cycleTime = apvts.getRawParameterValue("CycleTime")->load();
+    float autoIntensity = apvts.getRawParameterValue("AutoIntensity")->load() / 100.0f;
 
-    for (int i = 0; i < Solfeggio::NUM_FREQUENCIES; ++i) {
-        auto freqStr = juce::String(Solfeggio::Frequencies[static_cast<size_t>(i)], 0);
-        float g = apvts.getRawParameterValue(freqStr + "Hz_Gain")->load();
-        bool  e = apvts.getRawParameterValue(freqStr + "Hz_On")->load() > 0.5f;
-        gains[static_cast<size_t>(i)] = e ? g : 0.0f;
-        enabled[static_cast<size_t>(i)] = e;
-        smoothedGains[static_cast<size_t>(i)].setTargetValue(gains[static_cast<size_t>(i)]);
+    // Determine frequency gains
+    std::array<float, Solfeggio::NUM_FREQUENCIES> targetGains{};
+
+    if (autoMode) {
+        // ===== SMART AUTO MODE =====
+        // Analyze the input audio (channel 0)
+        autoEngine.analyzeBlock(buffer.getReadPointer(0), numSamples);
+
+        // Get smart target gains
+        autoEngine.getTargetGains(targetGains, cycleTime, autoIntensity);
+
+        // Set smoothed gains for auto mode
+        for (int i = 0; i < Solfeggio::NUM_FREQUENCIES; ++i) {
+            autoSmoothedGains[static_cast<size_t>(i)].setTargetValue(targetGains[static_cast<size_t>(i)]);
+        }
+    } else {
+        // ===== MANUAL MODE =====
+        for (int i = 0; i < Solfeggio::NUM_FREQUENCIES; ++i) {
+            auto freqStr = juce::String(Solfeggio::Frequencies[static_cast<size_t>(i)], 0);
+            float g = apvts.getRawParameterValue(freqStr + "Hz_Gain")->load();
+            bool  e = apvts.getRawParameterValue(freqStr + "Hz_On")->load() > 0.5f;
+            float gain = e ? g : 0.0f;
+            smoothedGains[static_cast<size_t>(i)].setTargetValue(gain);
+        }
     }
 
-    // Generate solfeggio signal
-    juce::AudioBuffer<float> solfeggioBuffer(totalNumOutputChannels, numSamples);
-    solfeggioBuffer.clear();
-
+    // Generate solfeggio signal and mix
     for (int sample = 0; sample < numSamples; ++sample) {
         float currentMix = smoothedMix.getNextValue();
 
         // Accumulate all active oscillators
         float solfeggioSample = 0.0f;
         for (int i = 0; i < Solfeggio::NUM_FREQUENCIES; ++i) {
-            float gain = smoothedGains[static_cast<size_t>(i)].getNextValue();
+            float gain;
+            if (autoMode) {
+                gain = autoSmoothedGains[static_cast<size_t>(i)].getNextValue();
+            } else {
+                gain = smoothedGains[static_cast<size_t>(i)].getNextValue();
+            }
+
             if (gain > 0.001f) {
                 solfeggioSample += oscillators[static_cast<size_t>(i)].next()
                                  * gain * 0.1f; // -20dB subliminal level
@@ -290,7 +519,6 @@ void SolfeggioProcessor::processBlock(
         fftInputBuffer[static_cast<size_t>(fftFillIndex)] = buffer.getSample(0, sample);
         if (++fftFillIndex >= fftSize) {
             fftFillIndex = 0;
-            // Copy to fftData and perform FFT
             std::copy(fftInputBuffer.begin(), fftInputBuffer.end(), fftData.begin());
             std::fill(fftData.begin() + fftSize, fftData.end(), 0.0f);
             forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());

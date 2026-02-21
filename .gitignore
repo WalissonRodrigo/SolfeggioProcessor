@@ -48,3 +48,4 @@ cmake-*.sh
 # OS
 .DS_Store
 desktop.ini
+*.log
