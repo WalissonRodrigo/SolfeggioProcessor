@@ -29,29 +29,47 @@
 
 ## 🏗️ Architecture
 
+The codebase follows a **layered MVC architecture** where each layer has a single responsibility:
+
 ```
 Source/
-├── SolfeggioProcessor.h/.cpp   # Audio processor, Smart Auto Engine, Sidechain Compressor
-├── PluginEditor.h/.cpp         # GUI with frequency knobs, auto controls, spectrum display
-├── LookAndFeel.h               # Custom dark theme (purple/gold palette)
-└── SpectrumAnalyzer.h          # Real-time FFT spectrum visualizer
+├── Core/                         ← Shared constants, types, LookAndFeel
+│   ├── Constants.h               # Parameter IDs, frequency metadata, layout
+│   ├── LookAndFeel.h             # Dark theme (purple/gold palette)
+│   └── WindowsIconHelpers.h      # Win32 taskbar icon helper
+│
+├── DSP/                          ← Model: all audio processing
+│   ├── SolfeggioEngine.h/.cpp    # Orchestrator — oscillators, FFT, sidechain
+│   ├── SmartAutoEngine.h/.cpp    # Spectral analysis & profile detection
+│   └── SidechainCompressor.h/.cpp# Envelope follower + soft-knee compressor
+│
+├── GUI/                          ← View: visual components, zero DSP
+│   ├── PluginEditor.h/.cpp       # Top-level layout container
+│   ├── SpectrumAnalyzer.h        # Real-time FFT display
+│   ├── AutoModeBar.h             # Auto-mode controls + profile label
+│   ├── FrequencyGrid.h           # 10-knob frequency layout grid
+│   └── FrequencyControl.h        # Individual frequency knob + toggle
+│
+└── Plugin/                       ← Controller: JUCE lifecycle & APVTS bridge
+    ├── SolfeggioProcessor.h/.cpp  # Parameter layout, state I/O, DSP delegation
 ```
 
-### Core Components
-
-- **`SolfeggioProcessor`** — Main audio processor with 10 sine oscillators, parameter management, FFT analysis, and state serialization
-- **`SmartAutoEngine`** — Analyzes audio into bass/mid/high energy bands, detects music profile, selects and crossfades Solfeggio frequencies
-- **`SidechainCompressor`** — RMS/peak envelope follower with soft-knee compression for intelligent ducking
-- **`SpectrumAnalyzer`** — Logarithmic FFT display (20 Hz–20 kHz) with Solfeggio frequency markers
-- **`SolfeggioLookAndFeel`** — Custom JUCE LookAndFeel_V4 with gradient rotary sliders, toggle buttons, and linear sliders
+### Data Flow
+```
+User (APVTS params)  →  SolfeggioProcessor  →  SolfeggioEngine
+                              ↓                      ↓
+                         PluginEditor        SmartAutoEngine / SidechainCompressor
+                              ↓
+                        SpectrumAnalyzer ← FFT data (lock-free atomic)
+```
 
 ### Smart Auto Mode — How It Works
 
-1. **Spectral Analysis** — Splits input audio into bass (20–300 Hz), mid (300–2 kHz), and high (2–10 kHz) bands
-2. **Profile Detection** — Classifies the energy distribution (e.g., "Bass Heavy" for EDM, "Mid Focused" for vocals)
-3. **Frequency Selection** — Picks 3 Solfeggio frequencies that hide best within the dominant spectral bands
-4. **Crossfade Cycling** — Every N seconds (configurable 15–120s), smoothly transitions to a new set of frequencies
-5. **Adaptive Volume** — Automatically reduces Solfeggio volume when music is loud for a truly subliminal effect
+1. **Spectral Analysis** — Splits input audio into bass/mid/high energy bands
+2. **Profile Detection** — Classifies: Bass Heavy, Mid Focused, Bright, Full Spectrum, Quiet
+3. **Frequency Selection** — Picks 3 Solfeggio frequencies matching the dominant spectrum
+4. **Crossfade Cycling** — Smoothly transitions between sets every N seconds (15–120s)
+5. **Adaptive Volume** — Reduces Solfeggio volume when music is loud for a subliminal effect
 
 ## 🔧 Building
 
@@ -65,36 +83,32 @@ Source/
 
 ```bash
 sudo apt-get install -y libasound2-dev libjack-jackd2-dev libx11-dev \
-    libxrandr-dev libxinerama-dev libxcursor-dev libfreetype6-dev \
+    libxrandr-dev libxinerama-dev libxcursor-dev libfreetype-dev \
     libwebkit2gtk-4.1-dev libgtk-3-dev libcurl4-openssl-dev pkg-config
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
+./scripts/build_linux.sh
 ```
 
 ### macOS (Apple Silicon)
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
-cmake --build build --config Release --parallel
+./scripts/build_macos.sh
 ```
 
 ### Windows
 
-Use the provided build scripts:
-
 ```powershell
 # PowerShell (recommended)
-.\build_windows.ps1
+.\scripts\build_windows.ps1
 
 # Or CMD
-.\build_windows.bat
+.\scripts\build_windows.bat
 ```
 
-Or manually:
+### Manual Build
 
-```cmd
-cmake -B build -G "Visual Studio 17 2022" -A x64
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 

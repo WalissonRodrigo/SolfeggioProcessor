@@ -4,13 +4,15 @@ project(SolfeggioPlugin VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Enable SIMD optimizations (architecture-aware)
+# ============================================================================
+# SIMD optimizations (architecture-aware)
+# ARM/Apple Silicon uses NEON automatically — no flags needed
+# ============================================================================
 if(MSVC)
     add_compile_options(/arch:AVX2)
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i[3-6]86")
     add_compile_options(-msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mavx -mavx2)
 endif()
-# ARM/Apple Silicon uses NEON automatically — no flags needed
 
 include(CMake/EmbedIcon.cmake)
 
@@ -32,7 +34,7 @@ FetchContent_MakeAvailable(JUCE)
 juce_add_plugin(SolfeggioPlugin
     PLUGIN_MANUFACTURER_CODE Solf
     PLUGIN_CODE Sfgg
-    FORMATS VST3 Standalone # AU added below for macOS
+    FORMATS VST3 Standalone
     PRODUCT_NAME "Solfeggio Frequencies"
     COMPANY_NAME "WR Systems (Walisson Rodrigo)"
     BUNDLE_ID "com.walissonrodrigo.solfeggio"
@@ -48,17 +50,17 @@ juce_add_plugin(SolfeggioPlugin
 )
 
 # Embed icon as binary data for cross-platform robustness
-embed_icon(SolfeggioPlugin_Standalone "Resources/icon_256.png")
-embed_icon(SolfeggioPlugin_VST3 "Resources/icon_256.png")
+embed_icon(SolfeggioPlugin "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_256.png")
 
-# Native Windows Icon Resource (for .exe file icon and taskbar)
+# Native Windows Icon Resource (for .exe taskbar icon — Standalone only)
+# VST3 is a DLL and does NOT support .rc icon resources.
+# Adding it to both targets causes a CVT1100 duplicate resource linker error.
 if(WIN32)
     set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.ico")
     if(EXISTS ${APP_ICON})
         set(ICON_RC "${CMAKE_BINARY_DIR}/icon.rc")
         file(WRITE ${ICON_RC} "IDI_ICON1 ICON DISCARDABLE \"${APP_ICON}\"\n")
         target_sources(SolfeggioPlugin_Standalone PRIVATE ${ICON_RC})
-        target_sources(SolfeggioPlugin_VST3 PRIVATE ${ICON_RC})
         set_target_properties(SolfeggioPlugin_Standalone PROPERTIES WIN32_EXECUTABLE TRUE)
     endif()
 endif()
@@ -74,22 +76,43 @@ if(APPLE)
 endif()
 
 # ============================================================================
-# Source files
+# Source files — organized by architectural layer
 # ============================================================================
 target_sources(SolfeggioPlugin PRIVATE
-    Source/SolfeggioProcessor.cpp
-    Source/PluginEditor.cpp
-    Source/SolfeggioEngine.cpp
-    Source/SmartAutoEngine.cpp
-    Source/SidechainCompressor.cpp
+    # Plugin layer (JUCE entry-point / Controller)
+    Source/Plugin/SolfeggioProcessor.cpp
+
+    # DSP layer (Model / Audio engine)
+    Source/DSP/SolfeggioEngine.cpp
+    Source/DSP/SmartAutoEngine.cpp
+    Source/DSP/SidechainCompressor.cpp
+
+    # GUI layer (View)
+    Source/GUI/PluginEditor.cpp
+
+    # Headers — listed for IDE visibility
+    Source/Plugin/SolfeggioProcessor.h
+    Source/DSP/SolfeggioEngine.h
+    Source/DSP/SmartAutoEngine.h
+    Source/DSP/SidechainCompressor.h
+    Source/GUI/PluginEditor.h
+    Source/GUI/SpectrumAnalyzer.h
+    Source/GUI/AutoModeBar.h
+    Source/GUI/FrequencyGrid.h
+    Source/GUI/FrequencyControl.h
+    Source/Core/Constants.h
+    Source/Core/LookAndFeel.h
+    Source/Core/WindowsIconHelpers.h
 )
 
-# Headers (for IDE visibility)
-target_sources(SolfeggioPlugin PRIVATE
-    Source/SolfeggioProcessor.h
-    Source/PluginEditor.h
-    Source/LookAndFeel.h
-    Source/SpectrumAnalyzer.h
+# ============================================================================
+# Include directories — each layer is a search root so includes stay simple
+# ============================================================================
+target_include_directories(SolfeggioPlugin PRIVATE
+    Source/Core
+    Source/DSP
+    Source/GUI
+    Source/Plugin
 )
 
 # ============================================================================
@@ -118,7 +141,6 @@ target_link_libraries(SolfeggioPlugin PRIVATE
 # macOS Codesigning
 # ============================================================================
 if(APPLE)
-    # Ad-hoc signing by default, override with -DCODESIGN_IDENTITY="Developer ID"
     set(CODESIGN_IDENTITY "-" CACHE STRING "Code signing identity")
     set_target_properties(SolfeggioPlugin PROPERTIES
         XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${CODESIGN_IDENTITY}"

@@ -115,9 +115,11 @@ public:
     {
         auto bounds = button.getLocalBounds().toFloat().reduced(2.0f);
         auto size = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 4.0f;
-        auto r = juce::Rectangle<float>(bounds.getX() + (bounds.getWidth() - size) * 0.5f,
-                                         bounds.getY() + (bounds.getHeight() - size) * 0.5f,
-                                         size, size);
+        auto r = juce::Rectangle<float>(
+            bounds.getX() + (bounds.getWidth() - size) * 0.5f,
+            bounds.getY() + (bounds.getHeight() - size) * 0.5f,
+            size, size
+        );
 
         bool isOn = button.getToggleState();
 
@@ -151,8 +153,7 @@ public:
                           juce::Slider::SliderStyle style, juce::Slider& slider) override
     {
         if (style != juce::Slider::LinearHorizontal) {
-            LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos,
-                                              minSliderPos, maxSliderPos, style, slider);
+            LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos, minSliderPos, maxSliderPos, style, slider);
             return;
         }
 

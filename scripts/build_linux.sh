@@ -38,9 +38,10 @@ for pkg in libasound2-dev libjack-jackd2-dev libfreetype6-dev libx11-dev \
 done
 
 if [ -n "$MISSING_DEPS" ]; then
-    echo "[INFO] Installing missing dependencies..."
-    sudo apt-get update
-    sudo apt-get install -y $MISSING_DEPS
+    echo "[INFO] Missing dependencies: $MISSING_DEPS"
+    echo "[WARN] Please install them manually if build fails."
+    # sudo apt-get update
+    # sudo apt-get install -y $MISSING_DEPS
 fi
 
 # --- Clean ---
