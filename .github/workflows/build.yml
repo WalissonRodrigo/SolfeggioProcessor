@@ -89,12 +89,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\VST3, dist\Standalone | Out-Null
-          Get-ChildItem -Recurse build -Filter "*.vst3" | ForEach-Object {
-            Copy-Item -Recurse -Force $_.FullName dist\VST3\
+          
+          # Only copy the VST3 bundle directories (avoid copying internal files with same extension)
+          Get-ChildItem -Recurse build -Filter "*.vst3" | Where-Object { $_.PSIsContainer } | ForEach-Object {
+            Copy-Item -Recurse -Force $_.FullName -Destination dist\VST3\
           }
+          
+          # Copy Standalone executables and icons only
           Get-ChildItem -Recurse "build\SolfeggioPlugin_artefacts\Release\Standalone" -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike "*.ilk" -and $_.Name -notlike "*.pdb" } |
-            ForEach-Object { Copy-Item -Force $_.FullName dist\Standalone\ }
+            Where-Object { $_.Extension -eq ".exe" -or $_.Extension -eq ".ico" } |
+            ForEach-Object { Copy-Item -Force $_.FullName -Destination dist\Standalone\ }
+          
           Get-ChildItem dist -Recurse
 
       - name: Install NSIS (Windows, tags only)
