@@ -90,15 +90,21 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist\VST3, dist\Standalone | Out-Null
           
-          # Only copy the VST3 bundle directories (avoid copying internal files with same extension)
-          Get-ChildItem -Recurse build -Filter "*.vst3" | Where-Object { $_.PSIsContainer } | ForEach-Object {
-            Copy-Item -Recurse -Force $_.FullName -Destination dist\VST3\
+          # Copy VST3 bundle (use direct path to avoid scanning huge build dir)
+          $vst3Source = "build\SolfeggioPlugin_artefacts\Release\VST3\Solfeggio Frequencies.vst3"
+          if (Test-Path $vst3Source) {
+            $vst3Target = "dist\VST3\Solfeggio Frequencies.vst3"
+            New-Item -ItemType Directory -Force -Path $vst3Target | Out-Null
+            Copy-Item -Path "$vst3Source\*" -Destination $vst3Target -Recurse -Force -Exclude "desktop.ini"
           }
           
-          # Copy Standalone executables and icons only
-          Get-ChildItem -Recurse "build\SolfeggioPlugin_artefacts\Release\Standalone" -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension -eq ".exe" -or $_.Extension -eq ".ico" } |
-            ForEach-Object { Copy-Item -Force $_.FullName -Destination dist\Standalone\ }
+          # Copy Standalone executables and icons
+          $standaloneSource = "build\SolfeggioPlugin_artefacts\Release\Standalone"
+          if (Test-Path $standaloneSource) {
+            Get-ChildItem $standaloneSource -File | 
+              Where-Object { $_.Extension -eq ".exe" -or $_.Extension -eq ".ico" } |
+              ForEach-Object { Copy-Item -Force $_.FullName -Destination dist\Standalone\ }
+          }
           
           Get-ChildItem dist -Recurse
 
