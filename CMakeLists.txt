@@ -4,15 +4,13 @@ project(SolfeggioPlugin VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Enable SIMD optimizations
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-msse2 -msse3 -mssse3 -msse4.1 -msse4.2)
-    if(NOT APPLE)
-        add_compile_options(-mavx -mavx2)
-    endif()
-elseif(MSVC)
+# Enable SIMD optimizations (architecture-aware)
+if(MSVC)
     add_compile_options(/arch:AVX2)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i[3-6]86")
+    add_compile_options(-msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mavx -mavx2)
 endif()
+# ARM/Apple Silicon uses NEON automatically — no flags needed
 
 # ============================================================================
 # Fetch JUCE via FetchContent
@@ -40,7 +38,7 @@ juce_add_plugin(SolfeggioPlugin
     NEEDS_MIDI_INPUT          FALSE
     NEEDS_MIDI_OUTPUT         FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD   TRUE
+    COPY_PLUGIN_AFTER_BUILD   FALSE
     PLUGIN_MANUFACTURER_URL   "https://github.com/WalissonRodrigo"
     PLUGIN_DESCRIPTION        "Subliminal Solfeggio frequency processing"
 )

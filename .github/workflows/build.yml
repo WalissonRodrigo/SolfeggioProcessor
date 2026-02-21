@@ -18,7 +18,7 @@ jobs:
             cmake_args: ""
           - os: macos-latest
             name: macOS
-            cmake_args: "-DCODESIGN_IDENTITY=-"
+            cmake_args: "-DCMAKE_OSX_ARCHITECTURES=arm64 -DCODESIGN_IDENTITY=-"
           - os: windows-latest
             name: Windows
             cmake_args: ""
