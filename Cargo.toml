@@ -1,0 +1,12 @@
+[package]
+name = "solfeggio"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "solfeggio"
+path = "src/SolfeggioNIH.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug", features = ["assert_process_allocs"] }
