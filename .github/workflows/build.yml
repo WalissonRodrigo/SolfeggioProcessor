@@ -172,9 +172,18 @@ jobs:
         with:
           path: artifacts
 
+      - name: Zip portable artifacts (VST3 / Standalone)
+        run: |
+          cd artifacts
+          for dir in SolfeggioPlugin-*-VST3 SolfeggioPlugin-*-Standalone; do
+            if [ -d "$dir" ]; then
+              echo "Zipping $dir..."
+              (cd "$dir" && zip -r "../${dir}.zip" .)
+            fi
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
           tag_name: ${{ github.ref_name }}
           name: "Solfeggio Frequencies ${{ github.ref_name }}"
@@ -214,8 +223,7 @@ jobs:
           files: |
             artifacts/SolfeggioPlugin-*-Installer/*.exe
             artifacts/SolfeggioPlugin-*-Installer/*.dmg
-            artifacts/SolfeggioPlugin-*-VST3/**
-            artifacts/SolfeggioPlugin-*-Standalone/**
+            artifacts/*.zip
           draft: false
           prerelease: false
           generate_release_notes: true
